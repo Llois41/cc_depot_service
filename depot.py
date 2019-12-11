@@ -164,6 +164,13 @@ def sell_share(id):
 			elif new_amount == 0:
 				# delete row
 				mongo.db.depot.update({}, { '$pull': {'equities': {'share':_share, 'amount':_amount}}})
+				# request current value of share
+				# shareValue = 100
+				# update budget
+				# request current budget
+				# add newBudget = budget = shareValue * _amount
+				new_budget = 200
+				mongo.db.depot.update_one({'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}, { '$set': { 'budget': new_budget}})
 				resp = jsonify('Share ' + str(_share) + ' deleted successfully!')
 				resp.status_code = 200
 				return resp
