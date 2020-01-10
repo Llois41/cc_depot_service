@@ -34,7 +34,7 @@ def user(id):
 	resp = dumps(user)
 	return resp
 
-@app.route('/depot/update', methods=['PUT'])
+@app.route('/depot', methods=['PUT'])
 def update_user():
 	_json = request.json
 	_id = _json['_id']
@@ -53,7 +53,7 @@ def update_user():
 	else:
 		return not_found()
 		
-@app.route('/depot/delete/<id>', methods=['DELETE'])
+@app.route('/depot/<id>', methods=['DELETE'])
 def delete_user(id):
 	mongo.db.user.delete_one({'_id': ObjectId(id)})
 	resp = jsonify('User deleted successfully!')
