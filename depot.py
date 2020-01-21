@@ -19,7 +19,8 @@ def add_user():
 		#do not save password as a plain text
 		_hashed_password = generate_password_hash(_password)
 		# save details
-		id = mongo.db.user.insert_one({'name': _name, 'email': _email, 'pwd': _hashed_password})
+		mydict = {'name': _name, 'email': _email, 'pwd': _hashed_password}
+		id = mongo.db.user.insert_one(mydict)
 		result = jsonify({'user': str(id.inserted_id) })
 		resp = result
 		resp.status_code = 200
@@ -48,7 +49,9 @@ def update_user():
 		#do not save password as a plain text
 		_hashed_password = generate_password_hash(_password)
 		# save edits
-		id = mongo.db.user.update_one({'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}, {'$set': {'name': _name, 'email': _email, 'pwd': _hashed_password}})
+		query = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}
+		values = {'$set': {'name': _name, 'email': _email, 'pwd': _hashed_password}}
+		id = mongo.db.user.update_one(query, values)
 		result = jsonify({'user': str(_id)})
 		resp = result
 		resp.status_code = 200
@@ -65,7 +68,8 @@ def user(id):
 
 @app.route('/user/<id>', methods=['DELETE'])
 def delete_user(id):
-	mongo.db.user.delete_one({'_id': ObjectId(id)})
+	myquery = {'_id': ObjectId(id)}
+	mongo.db.user.delete_one(myquery)
 	result = jsonify({'user': str(id)})
 	resp = result
 	resp.status_code = 200
@@ -81,8 +85,9 @@ def add_depot():
 	if _userid and _budget and request.method == 'POST':
 		# save details
 		#results = mongo.db.depot.find()
-		id = mongo.db.depot.insert_one({'userID':_userid,'budget':_budget,"equities":[]})
-		result = jsonify({'user': str(id.inserted_id) })
+		mydict = {'userID':_userid,'budget':_budget,"equities":[]}
+		id = mongo.db.depot.insert_one(mydict)
+		result = jsonify({'depot': str(id.inserted_id)})
 		resp = result
 		resp.status_code = 200
 		return resp
@@ -118,35 +123,27 @@ def buy_share(id):
 			# exist will be 0 if there is no entry with this ID which contains these share
 			if exist.count() == 0:
 				# missing: get the current value of one share
-				r = requests.get(Stock_API + "/equities/MSFT/latest")
+				r = requests.get(Stock_API + "/equities/" +_share + "/latest")
 				_json = r.json()
 				_buyValue = _json["Global Quote"]["05. price"]
 				# save edits
-				# mongo.db.depot.update_one({'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}, { '$push': { 'equities': { '$each': [ { 'share': _share, 'amount': _amount, 'buyValue': _buyValue, 'sellValue': 0 }],}}})
-				mongo.db.depot.update_one({'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}, { '$push': { 'equities': { '$each': [ { 'share': _share, 'stock': [{'amount': _amount, 'buyValue': _buyValue, 'sellValue': 0, 'date': datetime.now() }] }],}}})
-				resp = jsonify('Share ' + str(_share) + ' added successfully!')
+				query = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}
+				values = { '$push': { 'equities': { '$each': [ { 'share': _share, 'stock': [{'amount': _amount, 'buyValue': _buyValue, 'sellValue': 0, 'date': datetime.now() }] }],}}}
+				mongo.db.depot.update_one(query, values)
+				resp = jsonify('Share ' + str(_share) + ' added successfully!' + str(_buyValue))
 				resp.status_code = 200
 				return resp
 			elif len(exist[0]['equities']) > 0:
-				r = requests.get(Stock_API + "/equities/MSFT/latest")
+				r = requests.get(Stock_API + "/equities/" +_share + "/latest")
 				_json = r.json()
 				_buyValue = _json["Global Quote"]["05. price"]
 
 				# update into database
-				mongo.db.depot.update_one({'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id), 'equities.share': _share}, { '$push': {"equities.$.stock": { '$each': [{'amount': _amount, 'buyValue': _buyValue, 'sellValue': 0, 'date': datetime.now()}] }}})
+				query = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id), 'equities.share': _share}
+				values = { '$push': {"equities.$.stock": { '$each': [{'amount': _amount, 'buyValue': _buyValue, 'sellValue': 0, 'date': datetime.now()}] }}}
+				mongo.db.depot.update_one(query, values)
 				resp = jsonify('Share ' + str(_share) + ' updated successfully!' + str(_buyValue))
 				resp.status_code = 200
-
-				# # find out current amount
-				# query = mongo.db.depot.aggregate([{ "$match": { "_id": ObjectId(_id) }},{'$project':{"equities":{'$filter':{'input':"$equities", 'as':"equities", 'cond': {'$eq':['$$equities.share', _share]}}}}}])
-				# query_results = list(query)
-				# current_amount = query_results[0]['equities'][0]['amount']
-				# # assign new value
-				# new_amount = current_amount + _amount
-				# # update into database
-				# mongo.db.depot.update_one({'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id), 'equities.share': _share}, { '$set': { 'equities.$.amount': new_amount}})
-				# resp = jsonify('Share ' + str(_share) + ' updated successfully! Old amount: ' + str(current_amount) + ' New amount:' + str(new_amount))
-				# resp.status_code = 200
 				return resp
 			else:
 				return not_found()
@@ -158,15 +155,69 @@ def buy_share(id):
 			# is Share already in the depot?
 			exist = mongo.db.depot.find({'_id': ObjectId(id), "equities.share": _share})
 			if len(exist[0]['equities']) > 0:
-				# query = mongo.db.depot.aggregate([{ "$match": { "_id": ObjectId(_id) }},{'$project':{"equities":{'$filter':{'input':"$equities", 'as':"equities", 'cond': {'$eq':['$$equities.share', _share]}}}}}])
-				# query_results = list(query)
-				#query = mongo.db.depot.aggregate([{ "$match": {  "$and": [  {"_id": ObjectId(_id)  }, {"equities.share": _share }]      }} ])
-								
-				query = mongo.db.depot.aggregate([{ "$match":   {"share": _share } }     ])
-
-				# query = mongo.db.depot.aggregate([{"$group": { "_id": ObjectId(_id)}}, {"total_amount": {"$sum": {'$equities.stock.amount'}}}])
+				r = requests.get(Stock_API + "/equities/" +_share + "/latest")
+				_json = r.json()
+				_sellValue = _json["Global Quote"]["05. price"]
+				mymatch = {"$match": {"$and": [ { "_id": ObjectId(_id) }, {"equities.share": _share}]}}
+				myunwind = {"$unwind": "$equities"}
+				myproject = {"$project": {"share": "$equities.share", "amount_total": {"$sum": "$equities.stock.amount"}, "stock": "$equities.stock" }}
+				pipeline= [myunwind, mymatch, myproject]		
+				query = mongo.db.depot.aggregate(pipeline)
 				query_results = list(query)
-				print(query_results)
+				print(query_results[0])
+				total_amount = query_results[0]['amount_total']
+				# wie viele Aktien noch zu verkaufen sind
+				shares_to_sell = _amount
+				buys_to_delete = []
+				revenue = 0
+				if total_amount > _amount:
+					for each in query_results[0]['stock']:
+						# check how many shares are in the first buy
+						available_shares_depot = each['amount']
+						if available_shares_depot >= shares_to_sell:
+							# neue Aktienanzahl in dem buy
+							new_amount = available_shares_depot - shares_to_sell
+							# der Wert, der mit dem Verkauf auf das Budget gerechnet wird
+							share_value = _sellValue * shares_to_sell
+							# wie viel Gewinn/Verlust wurde generiert
+							print(type(_sellValue))
+							value_sell = (float(shares_to_sell) * float(_sellValue))
+							value_buy = (float(shares_to_sell) * float(each['buyValue']))
+							print(revenue)
+							revenue += (value_sell - value_buy)
+							print(revenue)
+							# in diesem if können alle Aktien verkauft werden, daher wird shares_to_sell auf 0 gesetzt.
+							shares_to_sell -= 0
+							# update der DB
+							myquery = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id), 'equities.share': _share}
+							newvalues = { '$set': { 'equities.$[1].stock.$.amount': 100}}
+							print("Hallo")
+							print(each['date'])
+							buy_date = each['date']
+							myquery = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id), 'equities.share': _share, "equities.stock.date": buy_date}
+							#query = mongo.db.depot.find(myquery)
+							#values = { '$push': { 'equities': { '$each': [ { 'share': _share, 'stock': [{'amount': _amount, 'buyValue': _buyValue, 'sellValue': 0, 'date': datetime.now() }] }],}}}
+							#mongo.db.depot.update_one(query, values)
+							query = mongo.db.depot.update_one(myquery, newvalues)
+							print(list(query))
+
+
+							# wenn alle Aktien verkauft wurden, müssen die anderen buys nicht mehr durchlaufen werden
+							break
+						elif available_shares_depot < shares_to_sell:
+							print("wow2")
+						# wie viele Aktien können verkauft werden
+						# berechne den Verkaufswert
+						# update das Budget
+						# wenn alle Aktien aus dem buy, verkauft werden, setze Markierung to_delete, am Ende den Eintrag löschen mit dem TimeStamp
+						# if shares_to_sell == 0 --> break
+					print("noch da?")
+				elif total_amount < _amount:
+					resp = jsonify('You cannot sell more shares than you have!')
+					resp.status_code = 403
+					return resp
+
+
 				# current_amount = query_results[0]['equities'][0]['amount']
 				# new_amount = current_amount - _amount
 				# print(new_amount)
