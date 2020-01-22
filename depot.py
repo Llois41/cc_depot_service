@@ -107,6 +107,7 @@ def depots(id):
 	depot = mongo.db.depot.find({'userID': id})
 	resp = dumps(depot)
 	return resp
+	
 
 @app.route('/depot/<id>', methods=['PUT'])
 def buy_share(id):
@@ -149,6 +150,7 @@ def buy_share(id):
 				return not_found()
 		else:
 			return not_found()
+
 	elif _type == 'sell':
 		# validate the received values
 		if _id and request.method == 'PUT':
@@ -170,97 +172,97 @@ def buy_share(id):
 				shares_to_sell = _amount
 				buys_to_delete = []
 				revenue = 0
+				# können alle Aktien verkauft werden? 
 				if total_amount > _amount:
 					for each in query_results[0]['stock']:
 						# check how many shares are in the first buy
 						available_shares_depot = each['amount']
-						if available_shares_depot >= shares_to_sell:
+						# können alle Aktien aus einem Buy verkauft werden?
+						if available_shares_depot > shares_to_sell:
+							buy_date = each['date']
 							# neue Aktienanzahl in dem buy
 							new_amount = available_shares_depot - shares_to_sell
 							# der Wert, der mit dem Verkauf auf das Budget gerechnet wird
-							share_value = _sellValue * shares_to_sell
+							budget = float(exist[0]['budget'])
+							share_value_sell = float(_sellValue) * float(shares_to_sell)
+							new_budget = budget + share_value_sell
 							# wie viel Gewinn/Verlust wurde generiert
 							print(type(_sellValue))
-							value_sell = (float(shares_to_sell) * float(_sellValue))
-							value_buy = (float(shares_to_sell) * float(each['buyValue']))
-							print(revenue)
-							revenue += (value_sell - value_buy)
-							print(revenue)
+							# share_value_buy = (float(shares_to_sell) * float(each['buyValue']))
+							# revenue += (share_value_sell - share_value_buy)
 							# in diesem if können alle Aktien verkauft werden, daher wird shares_to_sell auf 0 gesetzt.
 							shares_to_sell -= 0
 							# update der DB
-							myquery = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id), 'equities.share': _share}
-							newvalues = { '$set': { 'equities.$[1].stock.$.amount': 100}}
-							print("Hallo")
-							print(each['date'])
-							buy_date = each['date']
-							myquery = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id), 'equities.share': _share, "equities.stock.date": buy_date}
-							#query = mongo.db.depot.find(myquery)
-							#values = { '$push': { 'equities': { '$each': [ { 'share': _share, 'stock': [{'amount': _amount, 'buyValue': _buyValue, 'sellValue': 0, 'date': datetime.now() }] }],}}}
-							#mongo.db.depot.update_one(query, values)
-							query = mongo.db.depot.update_one(myquery, newvalues)
-							print(list(query))
-
-
+							newvalues = { '$set': {'budget': new_budget,  'equities.$[eq].stock.$[st].amount': new_amount}}
+							myfilter = [ {"eq.share": _share},{"st.date": buy_date}]
+							myquery = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}
+							query = mongo.db.depot.update_one(filter=myquery, update=newvalues, array_filters=myfilter, upsert=True )
+							resp = jsonify(str(_amount) + ' Share ' + str(_share) + ' deleted successfully!' + str(share_value_sell))
+							resp.status_code = 200
+							return resp
 							# wenn alle Aktien verkauft wurden, müssen die anderen buys nicht mehr durchlaufen werden
 							break
+						# alle Aktien aus einem buy werden verkauft, also wird er buy gelöscht. /oder amount erstmal auf null gesetzt.
+						elif available_shares_depot == shares_to_sell:
+							buy_date = each['date']
+							# neue Aktienanzahl in dem buy
+							new_amount = available_shares_depot - shares_to_sell
+							# der Wert, der mit dem Verkauf auf das Budget gerechnet wird
+							budget = float(exist[0]['budget'])
+							share_value_sell = float(_sellValue) * float(shares_to_sell)
+							new_budget = budget + share_value_sell
+							# wie viel Gewinn/Verlust wurde generiert
+							# in diesem if können alle Aktien verkauft werden, daher wird shares_to_sell auf 0 gesetzt.
+							shares_to_sell -= 0
+							# update der DB
+							myquery = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id), 'equities.stock.date': buy_date}
+							newvalues = {'$pull':{'equities.$.stock':{'date': buy_date}} }
+							query = mongo.db.depot.update_one(myquery, newvalues)
+							
+							newvalues = { '$set': {'budget': new_budget}}
+							myquery = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}
+							query = mongo.db.depot.update_one(myquery, newvalues)
+
+							resp = jsonify(str(_amount) + ' Share ' + str(_share) + ' deleted successfully!')
+							resp.status_code = 200
+							return resp
+							# wenn alle Aktien verkauft wurden, müssen die anderen buys nicht mehr durchlaufen werden
+							break
+						# alle Aktien aus einem buy werden verkauft, also wird er buy gelöscht. /oder amount erstmal auf null gesetzt.
 						elif available_shares_depot < shares_to_sell:
-							print("wow2")
-						# wie viele Aktien können verkauft werden
-						# berechne den Verkaufswert
-						# update das Budget
-						# wenn alle Aktien aus dem buy, verkauft werden, setze Markierung to_delete, am Ende den Eintrag löschen mit dem TimeStamp
-						# if shares_to_sell == 0 --> break
-					print("noch da?")
+							buy_date = each['date']
+							# neue Aktienanzahl in dem buy
+							new_amount = 0
+							# der Wert, der mit dem Verkauf auf das Budget gerechnet wird
+							budget = float(exist[0]['budget'])
+							share_value_sell = float(_sellValue) * float(shares_to_sell)
+							new_budget = budget + share_value_sell
+							# wie viel Gewinn/Verlust wurde generiert
+							print(type(_sellValue))
+							# share_value_buy = (float(shares_to_sell) * float(each['buyValue']))
+							# revenue += (share_value_sell - share_value_buy)
+							# in diesem if können alle Aktien verkauft werden, daher wird shares_to_sell auf 0 gesetzt.
+							shares_to_sell = shares_to_sell - available_shares_depot
+							# update der DB							
+							myquery = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id), 'equities.stock.date': buy_date}
+							newvalues = {'$pull':{'equities.$.stock':{'date': buy_date}} }
+							query = mongo.db.depot.update_one(myquery, newvalues)
 				elif total_amount < _amount:
 					resp = jsonify('You cannot sell more shares than you have!')
 					resp.status_code = 403
-					return resp
-
-
-				# current_amount = query_results[0]['equities'][0]['amount']
-				# new_amount = current_amount - _amount
-				# print(new_amount)
-				if new_amount > 0:
-					mongo.db.depot.update_one({'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id), 'equities.share': _share}, { '$set': { 'equities.$.amount': new_amount}})
-					# request current value of share
-					# shareValue = 100
-					# update budget
-					# request current budget
-					# add newBudget = budget = shareValue * _amount
-					new_budget = 200
-					mongo.db.depot.update_one({'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}, { '$set': { 'budget': new_budget}})
-					resp = jsonify(str(_amount) + ' Share ' + str(_share) + ' deleted successfully!')
-					resp.status_code = 200
-					return resp
-				elif new_amount < 0:
-					resp = jsonify('You cannot sell more shares than you have!')
-					resp.status_code = 403
-					return resp
-				elif new_amount == 0:
-					# delete row
-					mongo.db.depot.update({}, { '$pull': {'equities': {'share':_share, 'amount':_amount}}})
-					# request current value of share
-					# shareValue = 100
-					# update budget
-					# request current budget
-					# add newBudget = budget = shareValue * _amount
-					new_budget = 200
-					mongo.db.depot.update_one({'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}, { '$set': { 'budget': new_budget}})
-					resp = jsonify('Share ' + str(_share) + ' deleted successfully!')
-					resp.status_code = 200
 					return resp
 			else:
 				return not_found()
 		else:
 			return not_found()
 		
-@app.route('/test', methods=['GET'])
-def test():
-	r = requests.get(Stock_API + "/equities/MSFT/latest")
-	_json = r.json()
-	_price = _json["Global Quote"]["05. price"]
-	resp = jsonify(_json)
+@app.route('/test/<id>', methods=['PUT'])
+def test(id):
+	_id = id
+	newvalues = { '$set': {'budget': 1000}}
+	myquery = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}
+	query = mongo.db.depot.update_one(myquery, newvalues)
+	resp = jsonify("??")
 	resp.status_code = 200
 	return resp
 		
