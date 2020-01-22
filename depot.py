@@ -256,13 +256,9 @@ def buy_share(id):
 		else:
 			return not_found()
 		
-@app.route('/test/<id>', methods=['PUT'])
-def test(id):
-	_id = id
-	newvalues = { '$set': {'budget': 1000}}
-	myquery = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}
-	query = mongo.db.depot.update_one(myquery, newvalues)
-	resp = jsonify("??")
+@app.route('/test', methods=['GET'])
+def test():
+	resp = jsonify("hallo??")
 	resp.status_code = 200
 	return resp
 		
@@ -278,4 +274,4 @@ def not_found(error=None):
     return resp
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int("5000"), debug=True)
