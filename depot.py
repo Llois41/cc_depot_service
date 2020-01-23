@@ -2,7 +2,7 @@ from depotapp import app, mongo, Stock_API
 from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask import jsonify, request
-from werkzeug import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
 import requests
@@ -274,4 +274,4 @@ def not_found(error=None):
     return resp
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int("5000"), debug=True)
+    app.run(debug=True)

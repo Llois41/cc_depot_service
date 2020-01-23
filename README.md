@@ -1,5 +1,8 @@
 # cc_depot_service
 
+docker build -t theresar/depot-python-app .
+docker run -it --rm theresar/depot-python-app
+
 ## Doku
 
 Es gibt die folgenden API-Aufrufmöglichkeiten
