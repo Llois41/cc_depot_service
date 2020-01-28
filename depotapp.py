@@ -2,8 +2,9 @@ from flask import Flask
 from flask_pymongo import PyMongo
 
 app = Flask(__name__)
-app.secret_key = "secret key"
-app.config["MONGO_URI"] = "mongodb://localhost:27017/CC_Projekt"
-mongo = PyMongo(app)
+if app.config["ENV"] == "production":
+    app.config.from_object("config.ProductionConfig")
+else:
+    app.config.from_object("config.DevelopmentConfig")
 
-Stock_API = "http://localhost:3000"
+mongo = PyMongo(app)

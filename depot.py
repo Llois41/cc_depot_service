@@ -1,4 +1,4 @@
-from depotapp import app, mongo, Stock_API
+from depotapp import app, mongo
 from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask import jsonify, request
@@ -6,6 +6,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
 import requests
+
+Stock_API = app.config["STOCK_URI"]
 
 # Add a new User
 @app.route('/user', methods=['POST'])
@@ -107,10 +109,9 @@ def depots(id):
 	depot = mongo.db.depot.find({'userID': id})
 	resp = dumps(depot)
 	return resp
-	
 
 @app.route('/depot/<id>', methods=['PUT'])
-def buy_share(id):
+def change_share(id):
 	_json = request.json
 	_id = id
 	_type = _json['type']
@@ -186,10 +187,6 @@ def buy_share(id):
 							budget = float(exist[0]['budget'])
 							share_value_sell = float(_sellValue) * float(shares_to_sell)
 							new_budget = budget + share_value_sell
-							# wie viel Gewinn/Verlust wurde generiert
-							print(type(_sellValue))
-							# share_value_buy = (float(shares_to_sell) * float(each['buyValue']))
-							# revenue += (share_value_sell - share_value_buy)
 							# in diesem if können alle Aktien verkauft werden, daher wird shares_to_sell auf 0 gesetzt.
 							shares_to_sell -= 0
 							# update der DB
@@ -211,7 +208,6 @@ def buy_share(id):
 							budget = float(exist[0]['budget'])
 							share_value_sell = float(_sellValue) * float(shares_to_sell)
 							new_budget = budget + share_value_sell
-							# wie viel Gewinn/Verlust wurde generiert
 							# in diesem if können alle Aktien verkauft werden, daher wird shares_to_sell auf 0 gesetzt.
 							shares_to_sell -= 0
 							# update der DB
@@ -237,10 +233,6 @@ def buy_share(id):
 							budget = float(exist[0]['budget'])
 							share_value_sell = float(_sellValue) * float(shares_to_sell)
 							new_budget = budget + share_value_sell
-							# wie viel Gewinn/Verlust wurde generiert
-							print(type(_sellValue))
-							# share_value_buy = (float(shares_to_sell) * float(each['buyValue']))
-							# revenue += (share_value_sell - share_value_buy)
 							# in diesem if können alle Aktien verkauft werden, daher wird shares_to_sell auf 0 gesetzt.
 							shares_to_sell = shares_to_sell - available_shares_depot
 							# update der DB							
@@ -258,7 +250,20 @@ def buy_share(id):
 		
 @app.route('/test', methods=['GET'])
 def test():
+	print("test")
+	print("http://host.docker.internal" + "/equities/SAP/latest")
+	r = requests.get(Stock_API + "/equities/SAP/latest")
+	_json = r.json()
+	_sellValue = _json["Global Quote"]["05. price"]
+	resp = jsonify(_json)
+	resp.status_code = 200
+	return resp
+
+@app.route('/', methods=['GET'])
+def index():
 	resp = jsonify("hallo??")
+	print(app.config)
+	print("test")
 	resp.status_code = 200
 	return resp
 		
@@ -274,4 +279,4 @@ def not_found(error=None):
     return resp
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host='0.0.0.0')
