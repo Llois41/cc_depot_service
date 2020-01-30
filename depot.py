@@ -61,11 +61,12 @@ def update_user():
 	else:
 		return not_found()
 
-# return all data to a specific user		
+# return all data to a specific user
 @app.route('/user/<id>', methods=['GET'])
 def user(id):
 	user = mongo.db.user.find_one({'_id': ObjectId(id)})
 	resp = dumps(user)
+	#resp.status_code = 200
 	return resp
 
 @app.route('/user/<id>', methods=['DELETE'])
@@ -101,15 +102,18 @@ def add_depot():
 def depot():
 	depot = mongo.db.depot.find()
 	resp = dumps(depot)
+	#resp.status_code = 200
 	return resp
 
-# return all depot data to a specific user	
+# return all depot data to a specific user
 @app.route('/depot/user/<id>', methods=['GET'])
 def depots(id):
 	depot = mongo.db.depot.find({'userID': id})
 	resp = dumps(depot)
+	#resp.status_code = 200
 	return resp
 
+# Buy or sell
 @app.route('/depot/<id>', methods=['PUT'])
 def change_share(id):
 	_json = request.json
@@ -131,8 +135,8 @@ def change_share(id):
 				# save edits
 				query = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}
 				values = { '$push': { 'equities': { '$each': [ { 'share': _share, 'stock': [{'amount': _amount, 'buyValue': _buyValue, 'sellValue': 0, 'date': datetime.now() }] }],}}}
-				mongo.db.depot.update_one(query, values)
-				resp = jsonify('Share ' + str(_share) + ' added successfully!' + str(_buyValue))
+				result = mongo.db.depot.update_one(query, values)
+				resp = jsonify({'depotID': str(result.upserted_id)})
 				resp.status_code = 200
 				return resp
 			elif len(exist[0]['equities']) > 0:
@@ -143,8 +147,8 @@ def change_share(id):
 				# update into database
 				query = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id), 'equities.share': _share}
 				values = { '$push': {"equities.$.stock": { '$each': [{'amount': _amount, 'buyValue': _buyValue, 'sellValue': 0, 'date': datetime.now()}] }}}
-				mongo.db.depot.update_one(query, values)
-				resp = jsonify('Share ' + str(_share) + ' updated successfully!' + str(_buyValue))
+				result = mongo.db.depot.update_one(query, values)
+				resp = jsonify({'depotID': str(result.upserted_id)})
 				resp.status_code = 200
 				return resp
 			else:
@@ -171,8 +175,6 @@ def change_share(id):
 				total_amount = query_results[0]['amount_total']
 				# wie viele Aktien noch zu verkaufen sind
 				shares_to_sell = _amount
-				buys_to_delete = []
-				revenue = 0
 				# können alle Aktien verkauft werden? 
 				if total_amount > _amount:
 					for each in query_results[0]['stock']:
@@ -194,7 +196,7 @@ def change_share(id):
 							myfilter = [ {"eq.share": _share},{"st.date": buy_date}]
 							myquery = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}
 							query = mongo.db.depot.update_one(filter=myquery, update=newvalues, array_filters=myfilter, upsert=True )
-							resp = jsonify(str(_amount) + ' Share ' + str(_share) + ' deleted successfully!' + str(share_value_sell))
+							resp = jsonify({'depotID': str(query.upserted_id)})
 							resp.status_code = 200
 							return resp
 							# wenn alle Aktien verkauft wurden, müssen die anderen buys nicht mehr durchlaufen werden
@@ -219,7 +221,7 @@ def change_share(id):
 							myquery = {'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)}
 							query = mongo.db.depot.update_one(myquery, newvalues)
 
-							resp = jsonify(str(_amount) + ' Share ' + str(_share) + ' deleted successfully!')
+							resp = jsonify({'depotID': str(query.upserted_id)})
 							resp.status_code = 200
 							return resp
 							# wenn alle Aktien verkauft wurden, müssen die anderen buys nicht mehr durchlaufen werden
